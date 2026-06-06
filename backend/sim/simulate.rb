@@ -21,6 +21,7 @@
 # Quiet the benign experimental/io-event warnings and async-http's shutdown-race log noise.
 ENV["CONSOLE_LEVEL"] ||= "error"
 Warning[:experimental] = false
+$stdout.sync = true # flush per-second lines immediately (so background runs are tail-able)
 
 require "async"
 require "async/http/internet"
