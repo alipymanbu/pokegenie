@@ -1,0 +1,23 @@
+# PostgreSQL configuration.
+# Local dev/test: connects over the default Unix socket as the OS user (host Postgres 14).
+# Docker: set PGHOST/PGUSER/PGPASSWORD (libpq env) or DATABASE_URL in docker-compose.
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  host: <%= ENV["PGHOST"] %>
+  port: <%= ENV.fetch("PGPORT", 5432) %>
+  username: <%= ENV["PGUSER"] %>
+  password: <%= ENV["PGPASSWORD"] %>
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("POSTGRES_DB", "pokegenie_development") %>
+
+test:
+  <<: *default
+  database: <%= ENV.fetch("POSTGRES_DB_TEST", "pokegenie_test") %>
+
+production:
+  <<: *default
+  database: <%= ENV.fetch("POSTGRES_DB", "pokegenie_production") %>

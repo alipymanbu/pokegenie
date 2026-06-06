@@ -1,0 +1,5 @@
+# Root-level ignores (each app also has its own .gitignore)
+.DS_Store
+*.log
+.env
+.env.local

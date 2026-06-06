@@ -20,7 +20,12 @@ documented, deferred phase.
 
 ## Technical Context
 
-**Language/Version**: Ruby 3.3 + Rails 7.2 (API mode); TypeScript 5 + Node 20
+**Language/Version**: Ruby 3.2 + Rails 8.1 (API mode); TypeScript 5 + Node 22+
+
+> **Amendment (2026-06-06)**: Originally pinned Ruby 3.3 / Rails 7.2 / Node 20. Reconciled to the
+> host's current-stable toolchain (Ruby 3.2.2, Rails 8.1, Node 23) so the MVP runs and tests
+> green locally against the already-running host Postgres 14 + Redis. Docker images pin matching
+> versions. No principle impact — stack mandate (Rails/Next/Redis/Postgres) is unchanged.
 
 **Primary Dependencies**: Rails API, `redis` + `connection_pool` gems, `pg`; Next.js 14 (App
 Router) + React 18 on the frontend; RSpec for backend tests

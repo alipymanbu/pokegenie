@@ -1,0 +1,78 @@
+# Local-first delivery (constitution: docker-compose runs the whole system; AWS deferred).
+# Services: postgres, redis, backend (Rails API + SSE), worker (admission loop), frontend.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pokegenie_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    command: bash -c "bin/rails db:prepare && bin/rails server -b 0.0.0.0 -p 3000"
+    environment:
+      RAILS_ENV: development
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      POSTGRES_DB: pokegenie_development
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_ORIGIN: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    command: bash -c "bin/rails admission:run"
+    environment:
+      RAILS_ENV: development
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      POSTGRES_DB: pokegenie_development
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

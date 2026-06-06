@@ -20,12 +20,12 @@ concurrency/capacity/fairness tests NON-NEGOTIABLE and release-blocking.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [SETUP] Create top-level structure: `backend/`, `frontend/`, `infra/` (README placeholder noting deferred Terraform), root `docker-compose.yml`, `.gitignore`.
-- [ ] T002 [SETUP] Initialize Rails 7.2 API app in `backend/` (`rails new backend --api -d postgresql`); add gems: `redis`, `connection_pool`, and (group :test) `rspec-rails`, `database_cleaner-active_record`.
-- [ ] T003 [P] [SETUP] Initialize Next.js 14 (App Router, TypeScript) app in `frontend/`; add a minimal API base-URL config.
-- [ ] T004 [P] [SETUP] Configure RSpec in `backend/` (`rails g rspec:install`), set `database_cleaner` truncation strategy so concurrency specs see committed rows (research §8).
-- [ ] T005 [SETUP] Author `docker-compose.yml` with services: `postgres` (16), `redis` (7), `backend` (3000), `worker` (admission loop), `frontend` (3001); wire env + healthchecks per quickstart.md.
-- [ ] T006 [P] [SETUP] Configure linting/formatting: RuboCop (backend), ESLint/Prettier (frontend).
+- [x] T001 [SETUP] Create top-level structure: `backend/`, `frontend/`, `infra/` (README placeholder noting deferred Terraform), root `docker-compose.yml`, `.gitignore`.
+- [x] T002 [SETUP] Initialize Rails 7.2 API app in `backend/` (`rails new backend --api -d postgresql`); add gems: `redis`, `connection_pool`, and (group :test) `rspec-rails`, `database_cleaner-active_record`.
+- [x] T003 [P] [SETUP] Initialize Next.js 14 (App Router, TypeScript) app in `frontend/`; add a minimal API base-URL config.
+- [x] T004 [P] [SETUP] Configure RSpec in `backend/` (`rails g rspec:install`), set `database_cleaner` truncation strategy so concurrency specs see committed rows (research §8).
+- [x] T005 [SETUP] Author `docker-compose.yml` with services: `postgres` (16), `redis` (7), `backend` (3000), `worker` (admission loop), `frontend` (3001); wire env + healthchecks per quickstart.md.
+- [x] T006 [P] [SETUP] Configure linting/formatting: RuboCop (backend), ESLint/Prettier (frontend).
 
 **Checkpoint**: `docker compose up` builds; empty apps boot.
 
@@ -35,14 +35,14 @@ concurrency/capacity/fairness tests NON-NEGOTIABLE and release-blocking.
 
 **⚠️ Must complete before ANY user story.**
 
-- [ ] T007 [FOUND] Migration: `trainers` (handle citext UNIQUE) per data-model.md → `backend/db/migrate/`.
-- [ ] T008 [FOUND] Migration: `raids` (boss, gym_name, lat/long, starts_at, capacity, slots_remaining, status) with `CHECK (capacity > 0)`, `CHECK (slots_remaining >= 0)`, `CHECK (slots_remaining <= capacity)`.
-- [ ] T009 [FOUND] Migration: `reservations` (raid_id FK, trainer_id FK, status) with `UNIQUE (raid_id, trainer_id)` (idempotency / INV-2).
-- [ ] T010 [P] [FOUND] Models `Raid`, `Trainer`, `Reservation` in `backend/app/models/` with associations + validations mirroring DB constraints.
-- [ ] T011 [FOUND] `backend/app/services/redis_client.rb` — pooled Redis connection (`connection_pool`) usable from API threads, SSE threads, and the worker.
-- [ ] T012 [P] [FOUND] Centralized config/constants for tuning params (`RECONNECT_GRACE_SECONDS`, `ADMISSION_DEFAULT_BATCH`, `ADMISSION_TICK_MS`, `CLAIM_WINDOW_SECONDS`, `POSITION_PUSH_MS`, `POST_START_GRACE_SECONDS`) read from ENV with defaults (data-model.md).
-- [ ] T013 [P] [FOUND] JSON error contract + structured logging setup (`Error` schema from openapi.yaml; high-severity logger channel for oversell-attempt events, Principle VII).
-- [ ] T014 [FOUND] `db/seeds.rb`: one published raid, capacity 20 (quickstart step).
+- [x] T007 [FOUND] Migration: `trainers` (handle citext UNIQUE) per data-model.md → `backend/db/migrate/`.
+- [x] T008 [FOUND] Migration: `raids` (boss, gym_name, lat/long, starts_at, capacity, slots_remaining, status) with `CHECK (capacity > 0)`, `CHECK (slots_remaining >= 0)`, `CHECK (slots_remaining <= capacity)`.
+- [x] T009 [FOUND] Migration: `reservations` (raid_id FK, trainer_id FK, status) with `UNIQUE (raid_id, trainer_id)` (idempotency / INV-2).
+- [x] T010 [P] [FOUND] Models `Raid`, `Trainer`, `Reservation` in `backend/app/models/` with associations + validations mirroring DB constraints.
+- [x] T011 [FOUND] `backend/app/services/redis_client.rb` — pooled Redis connection (`connection_pool`) usable from API threads, SSE threads, and the worker.
+- [x] T012 [P] [FOUND] Centralized config/constants for tuning params (`RECONNECT_GRACE_SECONDS`, `ADMISSION_DEFAULT_BATCH`, `ADMISSION_TICK_MS`, `CLAIM_WINDOW_SECONDS`, `POSITION_PUSH_MS`, `POST_START_GRACE_SECONDS`) read from ENV with defaults (data-model.md).
+- [x] T013 [P] [FOUND] JSON error contract + structured logging setup (`Error` schema from openapi.yaml; high-severity logger channel for oversell-attempt events, Principle VII).
+- [x] T014 [FOUND] `db/seeds.rb`: one published raid, capacity 20 (quickstart step).
 
 **Checkpoint**: schema migrated, models + Redis client + config ready.
 
@@ -55,21 +55,21 @@ concurrency/capacity/fairness tests NON-NEGOTIABLE and release-blocking.
 first N get reservations; rest "raid full"; no double-holds.
 
 ### Tests first (write, watch fail)
-- [ ] T015 [P] [US1] `spec/services/reservations/claim_spec.rb`: duplicate claim ⇒ exactly one reservation, slot decremented once (SC-005, FR-008).
-- [ ] T016 [P] [US1] `spec/integration/no_oversell_spec.rb`: launch >capacity **concurrent** claims (threads) ⇒ exactly `capacity` confirmed, `slots_remaining = 0`, zero oversell (SC-001, FR-007).
-- [ ] T017 [P] [US1] `spec/integration/fifo_admission_spec.rb`: join order = admission order; first N admitted == first N joiners (SC-002, FR-002).
-- [ ] T018 [P] [US1] `spec/requests/queue_join_spec.rb`: join returns token+position; re-join is idempotent (same position); join on full/unpublished raid ⇒ 409 (FR-001, FR-013).
-- [ ] T019 [P] [US1] `spec/requests/reservations_spec.rb`: claim when admitted ⇒ 201; not admitted ⇒ 409; full ⇒ 409 `raid_full` (FR-006, FR-009).
+- [x] T015 [P] [US1] `spec/services/reservations/claim_spec.rb`: duplicate claim ⇒ exactly one reservation, slot decremented once (SC-005, FR-008).
+- [x] T016 [P] [US1] `spec/integration/no_oversell_spec.rb`: launch >capacity **concurrent** claims (threads) ⇒ exactly `capacity` confirmed, `slots_remaining = 0`, zero oversell (SC-001, FR-007).
+- [x] T017 [P] [US1] `spec/integration/fifo_admission_spec.rb`: join order = admission order; first N admitted == first N joiners (SC-002, FR-002).
+- [x] T018 [P] [US1] `spec/requests/queue_join_spec.rb`: join returns token+position; re-join is idempotent (same position); join on full/unpublished raid ⇒ 409 (FR-001, FR-013).
+- [x] T019 [P] [US1] `spec/requests/reservations_spec.rb`: claim when admitted ⇒ 201; not admitted ⇒ 409; full ⇒ 409 `raid_full` (FR-006, FR-009).
 
 ### Implementation
-- [ ] T020 [US1] `backend/app/services/queue/join.rb`: `INCR seq` → `ZADD queue NX` → mint token (`SET token:{t} EX grace`); reject if raid not published / full. Returns status (position via ZRANK, depth via ZCARD).
-- [ ] T021 [US1] `backend/app/services/queue/position.rb`: ZRANK lookup → waiting/admitted/not-found resolution.
-- [ ] T022 [US1] `backend/app/services/admission/pacing.rb`: read `admission:rate:{raid}` or return `ADMISSION_DEFAULT_BATCH` (never raises — Principle III).
-- [ ] T023 [US1] `backend/app/services/queue/admit_batch.rb`: ZPOPMIN batch → SADD `admitted` (TTL) → INCRBY `metrics:admitted` → PUBLISH `admitted`; stop & drain `raid_full` when `slots_remaining = 0`.
-- [ ] T024 [US1] `backend/app/services/reservations/claim.rb`: the atomic transaction (insert ON CONFLICT DO NOTHING + guarded decrement; rollback ⇒ raid_full; SISMEMBER admitted gate; metrics counters; high-sev log on guarded-update race). **This is the capacity invariant (Principle II).**
-- [ ] T025 [US1] `backend/lib/admission_loop.rb`: standalone process — every `ADMISSION_TICK_MS`, for each published raid call `admit_batch`; safe on coordinator/key absence; logs admission rate.
-- [ ] T026 [US1] Controllers + routes: `QueueController#join`, `#status`; `ReservationsController#create` (maps results to openapi.yaml status codes).
-- [ ] T027 [US1] Make T015–T019 pass; verify zero-oversell and FIFO specs are green.
+- [x] T020 [US1] `backend/app/services/queue/join.rb`: `INCR seq` → `ZADD queue NX` → mint token (`SET token:{t} EX grace`); reject if raid not published / full. Returns status (position via ZRANK, depth via ZCARD).
+- [x] T021 [US1] `backend/app/services/queue/position.rb`: ZRANK lookup → waiting/admitted/not-found resolution.
+- [x] T022 [US1] `backend/app/services/admission/pacing.rb`: read `admission:rate:{raid}` or return `ADMISSION_DEFAULT_BATCH` (never raises — Principle III).
+- [x] T023 [US1] `backend/app/services/queue/admit_batch.rb`: ZPOPMIN batch → SADD `admitted` (TTL) → INCRBY `metrics:admitted` → PUBLISH `admitted`; stop & drain `raid_full` when `slots_remaining = 0`.
+- [x] T024 [US1] `backend/app/services/reservations/claim.rb`: the atomic transaction (insert ON CONFLICT DO NOTHING + guarded decrement; rollback ⇒ raid_full; SISMEMBER admitted gate; metrics counters; high-sev log on guarded-update race). **This is the capacity invariant (Principle II).**
+- [x] T025 [US1] `backend/lib/admission_loop.rb`: standalone process — every `ADMISSION_TICK_MS`, for each published raid call `admit_batch`; safe on coordinator/key absence; logs admission rate.
+- [x] T026 [US1] Controllers + routes: `QueueController#join`, `#status`; `ReservationsController#create` (maps results to openapi.yaml status codes).
+- [x] T027 [US1] Make T015–T019 pass; verify zero-oversell and FIFO specs are green.
 
 **Checkpoint**: MVP works end-to-end via curl (quickstart) — join, admit (worker), claim, no oversell.
 
