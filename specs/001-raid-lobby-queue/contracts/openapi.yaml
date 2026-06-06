@@ -1,0 +1,251 @@
+openapi: 3.0.3
+info:
+  title: PokeGenie Raid Lobby Queue API
+  version: 0.1.0
+  description: >
+    REST contract for the raid lobby waiting-queue + reservation system (core iteration).
+    Capacity is enforced server-side in PostgreSQL; the queue is a Redis sorted set.
+    Real-time position/admission is delivered over the SSE stream documented in
+    contracts/sse-events.md (the /stream endpoint below is the SSE entrypoint).
+servers:
+  - url: http://localhost:3000
+    description: Local docker-compose backend
+paths:
+  /raids:
+    get:
+      summary: List published raids
+      responses:
+        '200':
+          description: Raids available to queue for
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  raids:
+                    type: array
+                    items: { $ref: '#/components/schemas/Raid' }
+    post:
+      summary: Create a raid (organizer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RaidCreate' }
+      responses:
+        '201':
+          description: Created (status=draft)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Raid' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /raids/{id}:
+    get:
+      summary: Get a raid
+      parameters: [ { $ref: '#/components/parameters/RaidId' } ]
+      responses:
+        '200':
+          description: Raid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Raid' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /raids/{id}/publish:
+    post:
+      summary: Publish a raid so trainers can queue (organizer)
+      parameters: [ { $ref: '#/components/parameters/RaidId' } ]
+      responses:
+        '200':
+          description: Now published
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Raid' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /raids/{id}/queue/join:
+    post:
+      summary: Join the waiting line for a raid (FR-001)
+      parameters: [ { $ref: '#/components/parameters/RaidId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trainer_handle]
+              properties:
+                trainer_handle:
+                  type: string
+                  description: Stable trainer identity
+      responses:
+        '200':
+          description: In line (idempotent — re-join returns the same position)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueStatus' }
+        '409':
+          description: Raid is full or not published (FR-013)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /raids/{id}/queue/status:
+    get:
+      summary: Current position in line (FR-003)
+      parameters:
+        - { $ref: '#/components/parameters/RaidId' }
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+          description: Queue token from join
+      responses:
+        '200':
+          description: Position / admission state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QueueStatus' }
+        '404':
+          description: Token expired / not in line (treat as new arrival on re-join, FR-014)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /raids/{id}/queue/stream:
+    get:
+      summary: SSE stream of position + admission events (FR-004, Principle V)
+      description: >
+        Server-Sent Events. See contracts/sse-events.md for event names and payloads.
+        Reconnect with the same token to preserve position (FR-010).
+      parameters:
+        - { $ref: '#/components/parameters/RaidId' }
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+  /raids/{id}/reservations:
+    post:
+      summary: Claim a slot once admitted (FR-006/007/008/009)
+      parameters: [ { $ref: '#/components/parameters/RaidId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trainer_handle]
+              properties:
+                trainer_handle: { type: string }
+      responses:
+        '201':
+          description: Reservation confirmed (idempotent — repeat returns the same one)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '200':
+          description: Reservation already existed (idempotent replay, FR-008)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '409':
+          description: Raid full (no slots, FR-009) or trainer not admitted yet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /raids/{id}/metrics:
+    get:
+      summary: Operational metrics for a raid (FR-016, SC-007)
+      parameters: [ { $ref: '#/components/parameters/RaidId' } ]
+      responses:
+        '200':
+          description: Live metrics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Metrics' }
+components:
+  parameters:
+    RaidId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer }
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Raid:
+      type: object
+      properties:
+        id: { type: integer }
+        boss: { type: string }
+        gym_name: { type: string }
+        starts_at: { type: string, format: date-time }
+        capacity: { type: integer }
+        slots_remaining: { type: integer }
+        status: { type: string, enum: [draft, published, closed] }
+    RaidCreate:
+      type: object
+      required: [boss, gym_name, starts_at, capacity]
+      properties:
+        boss: { type: string }
+        gym_name: { type: string }
+        starts_at: { type: string, format: date-time }
+        capacity: { type: integer, minimum: 1 }
+        latitude: { type: number }
+        longitude: { type: number }
+    QueueStatus:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Returned on join; reuse for status/stream/reconnect
+        state:
+          type: string
+          enum: [waiting, admitted, raid_full]
+        position:
+          type: integer
+          nullable: true
+          description: 1-based position in line; null once admitted
+        depth:
+          type: integer
+          description: Total trainers currently in line (ZCARD)
+    Reservation:
+      type: object
+      properties:
+        id: { type: integer }
+        raid_id: { type: integer }
+        trainer_handle: { type: string }
+        status: { type: string, enum: [confirmed] }
+        created_at: { type: string, format: date-time }
+    Metrics:
+      type: object
+      properties:
+        raid_id: { type: integer }
+        queue_depth: { type: integer }
+        slots_remaining: { type: integer }
+        capacity: { type: integer }
+        claims_total: { type: integer }
+        conflicts_total: { type: integer }
+        admitted_total: { type: integer }
+        conflict_rate: { type: number, description: conflicts / claims }
+    Error:
+      type: object
+      properties:
+        error: { type: string, description: machine code, e.g. raid_full, not_admitted }
+        message: { type: string }
