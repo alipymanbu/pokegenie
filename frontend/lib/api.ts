@@ -21,6 +21,12 @@ export interface QueueStatus {
   raid_id: number;
 }
 
+export async function getRaid(raidId: number): Promise<Raid> {
+  const res = await fetch(`${API_BASE}/raids/${raidId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load raid (${res.status})`);
+  return res.json();
+}
+
 export async function listRaids(): Promise<Raid[]> {
   const res = await fetch(`${API_BASE}/raids`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load raids (${res.status})`);
