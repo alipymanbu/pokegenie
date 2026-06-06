@@ -1,18 +1,11 @@
 "use client";
 
-// MVP waiting room: join, then POLL /queue/status every 2s and claim once admitted.
-// US2 replaces this poll with the SSE stream (lib/queueStream.ts) for instant updates.
+// Waiting room with real-time SSE (US2): position + admission are pushed by the server.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  joinQueue,
-  getStatus,
-  getRaid,
-  claimSlot,
-  type QueueStatus,
-  type Raid,
-} from "@/lib/api";
+import { joinQueue, getRaid, claimSlot, type QueueStatus, type Raid } from "@/lib/api";
+import { openQueueStream } from "@/lib/queueStream";
 
 type Phase = "idle" | "waiting" | "admitted" | "confirmed" | "full" | "expired";
 
@@ -61,22 +54,17 @@ export default function RaidQueuePage() {
     setPhase("admitted");
   }
 
-  // Poll position/admission while waiting.
+  // Real-time stream while waiting (replaces polling).
   useEffect(() => {
-    if (phase !== "waiting" || !token || !handle) return;
-    const timer = setInterval(async () => {
-      try {
-        const s = await getStatus(raidId, handle, token);
-        if ("position" in s) {
-          setStatus(s as QueueStatus);
-          if (s.state === "admitted") enterAdmitted(s.claim_seconds_remaining);
-        }
-      } catch {
-        /* transient; keep polling */
-      }
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [phase, token, handle, raidId]);
+    if (phase !== "waiting" || !token) return;
+    const es = openQueueStream(raidId, token, {
+      onPosition: ({ position, depth }) =>
+        setStatus({ token, raid_id: raidId, state: "waiting", position, depth }),
+      onAdmitted: ({ claim_seconds_remaining }) => enterAdmitted(claim_seconds_remaining),
+      onRaidFull: () => setPhase("full"),
+    });
+    return () => es.close();
+  }, [phase, token, raidId]);
 
   // Count down the claim window; lapse → expired.
   useEffect(() => {
@@ -101,7 +89,7 @@ export default function RaidQueuePage() {
     } else if (r.body.error === "raid_full") {
       setPhase("full");
     } else if (r.body.error === "not_admitted") {
-      setPhase("expired"); // window lapsed server-side
+      setPhase("expired");
     } else {
       setError(r.body.message ?? "Could not claim a slot.");
     }
@@ -150,7 +138,7 @@ export default function RaidQueuePage() {
         </div>
       )}
 
-      {/* WAITING — live position */}
+      {/* WAITING — live position (SSE) */}
       {phase === "waiting" && status && (
         <div className="card">
           <div className="position-hero">
@@ -158,7 +146,7 @@ export default function RaidQueuePage() {
             <div className="position-number">#{status.position}</div>
             <div className="position-sub">
               <span className="live-dot" />
-              {status.depth.toLocaleString()} trainers in line
+              live · {status.depth.toLocaleString()} trainers in line
             </div>
           </div>
           <div className="progress" aria-hidden>

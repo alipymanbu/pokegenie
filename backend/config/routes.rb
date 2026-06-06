@@ -9,6 +9,7 @@ Rails.application.routes.draw do
     # Waiting queue (US1 join/status; US2 stream added later)
     post "queue/join", to: "queue#join"
     get  "queue/status", to: "queue#status"
+    get  "queue/stream", to: "queue_streams#show" # SSE (US2)
     # Slot reservation (the capacity-correct claim)
     resources :reservations, only: %i[create]
   end

@@ -81,13 +81,13 @@ first N get reservations; rest "raid full"; no double-holds.
 **Independent test**: positions only decrease; admitted notification arrives without polling.
 
 ### Tests first
-- [ ] T028 [P] [US2] `spec/requests/queue_stream_spec.rb`: stream sends an initial `position` event; emits `admitted` after the worker pops the trainer (FR-004); content-type `text/event-stream`.
+- [x] T028 [P] [US2] `spec/requests/queue_stream_spec.rb`: stream sends an initial `position` event; emits `admitted` after the worker pops the trainer (FR-004); content-type `text/event-stream`.
 
 ### Implementation
-- [ ] T029 [US2] `backend/app/controllers/queue_streams_controller.rb` (`ActionController::Live`): subscribe to `events:{raid}` (instant admitted/raid_full) + timer-based `position` every `POSITION_PUSH_MS`; keepalive comments; close on terminal event. Per sse-events.md.
-- [ ] T030 [US2] Ensure `admit_batch` publishes per-trainer `admitted`/`raid_full` payloads matching sse-events.md.
-- [ ] T031 [P] [US2] Frontend `frontend/lib/queueStream.ts`: `EventSource` wrapper handling `position`/`admitted`/`raid_full`/`error`.
-- [ ] T032 [P] [US2] Frontend `components/QueuePosition.tsx` + waiting-room page `app/raids/[id]/queue/page.tsx` showing live position; reveal `ClaimButton` on `admitted`.
+- [x] T029 [US2] `backend/app/controllers/queue_streams_controller.rb` (`ActionController::Live`): subscribe to `events:{raid}` (instant admitted/raid_full) + timer-based `position` every `POSITION_PUSH_MS`; keepalive comments; close on terminal event. Per sse-events.md.
+- [x] T030 [US2] Ensure `admit_batch` publishes per-trainer `admitted`/`raid_full` payloads matching sse-events.md.
+- [x] T031 [P] [US2] Frontend `frontend/lib/queueStream.ts`: `EventSource` wrapper handling `position`/`admitted`/`raid_full`/`error`.
+- [x] T032 [P] [US2] Frontend `components/QueuePosition.tsx` + waiting-room page `app/raids/[id]/queue/page.tsx` showing live position; reveal `ClaimButton` on `admitted`.
 
 **Checkpoint**: UI waiting room updates live and flips to claim on admission.
 

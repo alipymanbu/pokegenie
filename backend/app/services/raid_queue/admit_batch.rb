@@ -30,7 +30,9 @@ module RaidQueue
           p.incrby(QueueConfig.metric_admitted_key(@raid.id), ids.size)
         end
       end
-      ids.each { |id| publish(id, "admitted", claim_deadline: claim_deadline) }
+      ids.each do |id|
+        publish(id, "admitted", claim_deadline: claim_deadline, claim_seconds_remaining: QueueConfig::CLAIM_WINDOW_SECONDS)
+      end
 
       { admitted: ids.size, drained: 0 }
     end
