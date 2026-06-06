@@ -25,7 +25,14 @@ export default async function HomePage() {
 
   return (
     <>
-      <h2 className="section-title">Open raids</h2>
+      <div className="toolbar">
+        <h2 className="section-title" style={{ margin: 0 }}>
+          Open raids
+        </h2>
+        <Link href="/raids/new" className="link-btn">
+          + Create a raid
+        </Link>
+      </div>
 
       {raids.length === 0 && (
         <div className="card muted">No published raids right now. Check back soon!</div>

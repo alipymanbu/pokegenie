@@ -113,11 +113,11 @@ first N get reservations; rest "raid full"; no double-holds.
 **Goal**: Organizer creates + publishes a capacity-bounded raid.
 
 ### Tests first
-- [ ] T036 [P] [US4] `spec/requests/raids_spec.rb`: create (201, status draft), publish (200), publish enables join; capacity enforced (FR-012, FR-013).
+- [x] T036 [P] [US4] `spec/requests/raids_spec.rb`: create (201, status draft), publish (200), publish enables join; capacity enforced (FR-012, FR-013).
 
 ### Implementation
-- [ ] T037 [US4] `RaidsController#index/#show/#create/#publish` + routes; `slots_remaining` initialized to `capacity` on create; per openapi.yaml.
-- [ ] T038 [P] [US4] Frontend `app/raids/[id]/page.tsx` (raid detail + Join) and a minimal create form/page.
+- [x] T037 [US4] `RaidsController#index/#show/#create/#publish` + routes; `slots_remaining` initialized to `capacity` on create; per openapi.yaml.
+- [x] T038 [P] [US4] Frontend `app/raids/[id]/page.tsx` (raid detail + Join) and a minimal create form/page.
 
 **Checkpoint**: organizer can stand up a new raid that trainers immediately queue for.
 
@@ -125,12 +125,12 @@ first N get reservations; rest "raid full"; no double-holds.
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T039 [P] [POLISH] `RaidsController#metrics` → `Metrics` schema (queue_depth, slots_remaining, counters, conflict_rate) (FR-016, SC-007).
-- [ ] T040 [P] [POLISH] `spec/integration/coordinator_down_spec.rb`: with `admission:rate` key absent/unreadable, admission proceeds at default batch, correctness preserved (SC-006, FR-015).
-- [ ] T041 [P] [POLISH] Frontend metrics/operator view (optional simple page) consuming `/raids/:id/metrics`.
-- [ ] T042 [P] [POLISH] README at repo root: architecture diagram, run instructions (link quickstart.md), explicit deferred-scope list.
-- [ ] T043 [P] [POLISH] `infra/README.md`: document the deferred AWS+Terraform phase (ECS/Fargate, ElastiCache, RDS, ALB) as future work — no resources created.
-- [ ] T044 [POLISH] Full `bundle exec rspec` green; manual quickstart walkthrough; verify the five release-blocking specs pass.
+- [x] T039 [P] [POLISH] `RaidsController#metrics` → `Metrics` schema (queue_depth, slots_remaining, counters, conflict_rate) (FR-016, SC-007).
+- [x] T040 [P] [POLISH] `spec/integration/coordinator_down_spec.rb`: with `admission:rate` key absent/unreadable, admission proceeds at default batch, correctness preserved (SC-006, FR-015).
+- [x] T041 [P] [POLISH] Frontend metrics/operator view (optional simple page) consuming `/raids/:id/metrics`.
+- [x] T042 [P] [POLISH] README at repo root: architecture diagram, run instructions (link quickstart.md), explicit deferred-scope list.
+- [x] T043 [P] [POLISH] `infra/README.md`: document the deferred AWS+Terraform phase (ECS/Fargate, ElastiCache, RDS, ALB) as future work — no resources created.
+- [x] T044 [POLISH] Full `bundle exec rspec` green; manual quickstart walkthrough; verify the five release-blocking specs pass.
 
 ---
 

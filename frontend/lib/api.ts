@@ -22,6 +22,49 @@ export interface QueueStatus {
   claim_seconds_remaining?: number;
 }
 
+export interface Metrics {
+  raid_id: number;
+  queue_depth: number;
+  slots_remaining: number;
+  capacity: number;
+  claims_total: number;
+  conflicts_total: number;
+  admitted_total: number;
+  conflict_rate: number;
+}
+
+export interface RaidInput {
+  boss: string;
+  gym_name: string;
+  starts_at: string;
+  capacity: number;
+}
+
+export async function createRaid(input: RaidInput): Promise<Raid> {
+  const res = await fetch(`${API_BASE}/raids`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message ?? `Create failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function publishRaid(raidId: number): Promise<Raid> {
+  const res = await fetch(`${API_BASE}/raids/${raidId}/publish`, { method: "POST" });
+  if (!res.ok) throw new Error(`Publish failed (${res.status})`);
+  return res.json();
+}
+
+export async function getMetrics(raidId: number): Promise<Metrics> {
+  const res = await fetch(`${API_BASE}/raids/${raidId}/metrics`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Metrics failed (${res.status})`);
+  return res.json();
+}
+
 export async function getRaid(raidId: number): Promise<Raid> {
   const res = await fetch(`${API_BASE}/raids/${raidId}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to load raid (${res.status})`);

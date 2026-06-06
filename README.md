@@ -65,8 +65,12 @@ Release-blocking specs (constitution Principle VI): concurrent **no-oversell**
 
 ## Status
 
-- ✅ **MVP (this iteration)**: fair FIFO queue, admission worker, capacity-correct reservation,
-  metrics; backend tested under concurrency; minimal Next.js UI (poll-based waiting room).
-- ⏳ **Next**: SSE live updates (US2), reconnect-preserves-place (US3), organizer raid CRUD (US4).
-- 🚫 **Deferred** (documented): adaptive admission controller, section pub/sub seat maps, durable
-  recovery log, production-scale SSE fleet, and AWS/Terraform infra (`infra/`).
+- ✅ **US1 — Core**: fair FIFO queue, admission worker, capacity-correct reservation, per-trainer
+  claim window with countdown + graceful expiry, metrics; backend tested under concurrency.
+- ✅ **US2 — Real-time**: SSE position + admission push (Redis pub/sub + periodic fallback).
+- ✅ **US3 — Reconnect**: presence-based grace window; refresh/disconnect resumes your place;
+  reservations survive (Postgres).
+- ✅ **US4 — Organizer**: create + publish raids from the UI.
+- ✅ **Polish**: operator metrics view, coordinator-down (pacing fallback) test.
+- 🚫 **Deferred** (documented): adaptive admission *controller* logic, section pub/sub seat maps,
+  durable recovery log, production-scale SSE fleet, and AWS/Terraform infra (`infra/`).

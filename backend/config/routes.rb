@@ -2,9 +2,10 @@ Rails.application.routes.draw do
   # Reveal health status on /up that returns 200 if the app boots with no exceptions.
   get "up" => "rails/health#show", as: :rails_health_check
 
-  resources :raids, only: %i[index show] do
+  resources :raids, only: %i[index show create] do
     member do
       get :metrics
+      post :publish
     end
     # Waiting queue (US1 join/status; US2 stream added later)
     post "queue/join", to: "queue#join"

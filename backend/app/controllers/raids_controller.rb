@@ -1,5 +1,5 @@
 class RaidsController < ApplicationController
-  before_action :find_raid, only: %i[show metrics]
+  before_action :find_raid, only: %i[show metrics publish]
 
   # GET /raids — published raids trainers can queue for
   def index
@@ -9,6 +9,18 @@ class RaidsController < ApplicationController
 
   # GET /raids/:id
   def show
+    render json: raid_json(@raid)
+  end
+
+  # POST /raids — organizer creates a raid (FR-012). Starts as draft.
+  def create
+    raid = Raid.create!(raid_params.merge(status: "draft"))
+    render json: raid_json(raid), status: :created
+  end
+
+  # POST /raids/:id/publish — open the raid for queuing (FR-012)
+  def publish
+    @raid.update!(status: "published") unless @raid.status == "closed"
     render json: raid_json(@raid)
   end
 
@@ -36,6 +48,10 @@ class RaidsController < ApplicationController
   end
 
   private
+
+  def raid_params
+    params.permit(:boss, :gym_name, :starts_at, :capacity, :latitude, :longitude)
+  end
 
   def raid_json(raid)
     {

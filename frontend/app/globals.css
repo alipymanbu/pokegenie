@@ -378,3 +378,60 @@ a.raid-card:hover {
 .muted {
   color: var(--muted);
 }
+
+/* ---------- Forms (create raid) ---------- */
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 14px 0 6px;
+}
+.input--block {
+  width: 100%;
+}
+
+/* ---------- Operator stats ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px 12px;
+}
+.stat {
+  text-align: center;
+}
+.stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+/* ---------- Toolbar ---------- */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.link-btn {
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--blue);
+}
+.ops-link {
+  float: right;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.ops-link:hover {
+  color: var(--ink);
+}

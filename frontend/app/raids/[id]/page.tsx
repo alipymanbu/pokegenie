@@ -157,6 +157,9 @@ export default function RaidQueuePage() {
 
   return (
     <>
+      <Link href={`/raids/${raidId}/metrics`} className="ops-link">
+        Operator view →
+      </Link>
       <Link href="/" className="back-link">
         ← All raids
       </Link>
