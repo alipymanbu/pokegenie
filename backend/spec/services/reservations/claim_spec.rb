@@ -18,8 +18,7 @@ RSpec.describe Reservations::Claim do
 
   it "is idempotent: repeating the same claim yields one reservation, one decrement (FR-008, SC-005)" do
     first = described_class.call(raid: raid, trainer: trainer)
-    # re-admit because a successful claim clears the admitted flag
-    admit!(raid, trainer)
+    # No re-admit: a real replay arrives after the first claim cleared the admitted flag.
     second = described_class.call(raid: raid, trainer: trainer)
 
     expect(first).to be_ok

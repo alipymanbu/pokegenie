@@ -25,7 +25,13 @@ module Reservations
     def call
       record_metric(QueueConfig.metric_claims_key(@raid.id))
 
-      # Flow gate: only admitted trainers may claim. Capacity is still independently
+      # Idempotency first (FR-008): a replay of a claim that already succeeded returns the
+      # existing reservation — even though the successful claim cleared the admitted flag.
+      # This must precede the admitted gate so retries/double-taps don't see :not_admitted.
+      existing = find_reservation
+      return ServiceResult.success(code: :ok, reservation: existing, idempotent: true) if existing
+
+      # Flow gate: only admitted trainers may make a NEW claim. Capacity is still independently
       # enforced below (defense in depth), so this gate is about fairness, not safety.
       unless admitted?
         return ServiceResult.failure(code: :not_admitted)

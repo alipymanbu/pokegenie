@@ -19,7 +19,7 @@ RSpec.describe "Reservations", type: :request do
     expect(raid.reload.slots_remaining).to eq(4)
   end
 
-  it "returns 200 (not 201) on idempotent replay (FR-008)" do
+  it "returns 200 (not 201) on idempotent replay, even without re-admission (FR-008)" do
     raid = create_raid(capacity: 5)
     trainer = join(raid, "ash")
     admit!(raid, trainer)
@@ -27,10 +27,12 @@ RSpec.describe "Reservations", type: :request do
     post "/raids/#{raid.id}/reservations", params: { trainer_handle: "ash" }, as: :json
     expect(response).to have_http_status(:created)
 
-    admit!(raid, trainer) # re-admit (claim cleared the flag)
+    # A real retry/double-tap arrives AFTER the first claim already cleared the admitted flag.
+    # It must still return the existing reservation — not :not_admitted — and consume no slot.
     post "/raids/#{raid.id}/reservations", params: { trainer_handle: "ash" }, as: :json
     expect(response).to have_http_status(:ok)
     expect(confirmed_count(raid)).to eq(1)
+    expect(raid.reload.slots_remaining).to eq(4)
   end
 
   it "rejects a claim from a non-admitted trainer with 409 not_admitted" do
