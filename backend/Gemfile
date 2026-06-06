@@ -48,3 +48,9 @@ group :development, :test do
   # Truncation cleaning so concurrency specs see each other's committed rows (research §8)
   gem "database_cleaner-active_record"
 end
+
+# Load simulator (sim/simulate.rb) — thousands of fiber-based virtual users over real HTTP.
+group :sim do
+  gem "async", "~> 2.0"
+  gem "async-http", "~> 0.75"
+end
