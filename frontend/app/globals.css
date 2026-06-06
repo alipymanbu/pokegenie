@@ -323,6 +323,26 @@ a.raid-card:hover {
   border: 2px solid var(--green);
   background: linear-gradient(180deg, rgba(31, 157, 85, 0.06), #fff);
 }
+.countdown {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--green);
+  background: rgba(31, 157, 85, 0.1);
+  padding: 8px 14px;
+  border-radius: 999px;
+  margin: 0 0 16px;
+}
+.countdown--urgent {
+  color: var(--red);
+  background: rgba(238, 21, 21, 0.1);
+  animation: pulse-red 1s infinite;
+}
+@keyframes pulse-red {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
 .success-card {
   text-align: center;
   border: 2px solid var(--gold);

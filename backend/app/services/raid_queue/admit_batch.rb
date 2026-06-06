@@ -24,9 +24,11 @@ module RaidQueue
 
       ids = members.map { |member, _score| member }
       QueueRedis.with do |r|
-        r.sadd(QueueConfig.admitted_key(@raid.id), ids)
-        r.expire(QueueConfig.admitted_key(@raid.id), QueueConfig::CLAIM_WINDOW_SECONDS)
-        r.incrby(QueueConfig.metric_admitted_key(@raid.id), ids.size)
+        # Each admitted trainer gets their own claim pass with an independent TTL.
+        r.pipelined do |p|
+          ids.each { |id| p.set(QueueConfig.claimable_key(@raid.id, id), "1", ex: QueueConfig::CLAIM_WINDOW_SECONDS) }
+          p.incrby(QueueConfig.metric_admitted_key(@raid.id), ids.size)
+        end
       end
       ids.each { |id| publish(id, "admitted", claim_deadline: claim_deadline) }
 

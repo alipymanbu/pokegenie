@@ -54,11 +54,11 @@ module Reservations
     private
 
     def admitted?
-      QueueRedis.with { |r| r.sismember(QueueConfig.admitted_key(@raid.id), @trainer.id.to_s) }
+      QueueRedis.with { |r| r.exists?(QueueConfig.claimable_key(@raid.id, @trainer.id)) }
     end
 
     def clear_admitted
-      QueueRedis.with { |r| r.srem(QueueConfig.admitted_key(@raid.id), @trainer.id.to_s) }
+      QueueRedis.with { |r| r.del(QueueConfig.claimable_key(@raid.id, @trainer.id)) }
     end
 
     def run_transaction

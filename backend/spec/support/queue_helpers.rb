@@ -14,9 +14,15 @@ module QueueHelpers
     Array.new(n) { |i| Trainer.create!(handle: "trainer_#{i}_#{SecureRandom.hex(3)}") }
   end
 
-  # Mark a trainer as admitted (bypasses the worker; the claim flow gate checks this set).
-  def admit!(raid, trainer)
-    QueueRedis.with { |r| r.sadd(QueueConfig.admitted_key(raid.id), trainer.id.to_s) }
+  # Mark a trainer as admitted (bypasses the worker). Mirrors AdmitBatch: a per-trainer claim
+  # pass with its own TTL. Pass ttl: to simulate a window about to expire.
+  def admit!(raid, trainer, ttl: QueueConfig::CLAIM_WINDOW_SECONDS)
+    QueueRedis.with { |r| r.set(QueueConfig.claimable_key(raid.id, trainer.id), "1", ex: ttl) }
+  end
+
+  # Simulate the claim window lapsing without claiming.
+  def expire_claim_pass!(raid, trainer)
+    QueueRedis.with { |r| r.del(QueueConfig.claimable_key(raid.id, trainer.id)) }
   end
 
   def confirmed_count(raid)

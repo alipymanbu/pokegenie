@@ -14,7 +14,13 @@ import {
   type Raid,
 } from "@/lib/api";
 
-type Phase = "idle" | "waiting" | "admitted" | "confirmed" | "full";
+type Phase = "idle" | "waiting" | "admitted" | "confirmed" | "full" | "expired";
+
+function mmss(total: number) {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 export default function RaidQueuePage() {
   const params = useParams<{ id: string }>();
@@ -26,8 +32,10 @@ export default function RaidQueuePage() {
   const [status, setStatus] = useState<QueueStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [reservationId, setReservationId] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [error, setError] = useState("");
   const startPos = useRef<number | null>(null);
+  const deadline = useRef<number | null>(null);
 
   useEffect(() => {
     getRaid(raidId).then(setRaid).catch(() => {});
@@ -46,6 +54,13 @@ export default function RaidQueuePage() {
     }
   }
 
+  function enterAdmitted(remaining?: number) {
+    const secs = remaining && remaining > 0 ? remaining : 120;
+    deadline.current = Date.now() + secs * 1000;
+    setSecondsLeft(secs);
+    setPhase("admitted");
+  }
+
   // Poll position/admission while waiting.
   useEffect(() => {
     if (phase !== "waiting" || !token || !handle) return;
@@ -54,7 +69,7 @@ export default function RaidQueuePage() {
         const s = await getStatus(raidId, handle, token);
         if ("position" in s) {
           setStatus(s as QueueStatus);
-          if (s.state === "admitted") setPhase("admitted");
+          if (s.state === "admitted") enterAdmitted(s.claim_seconds_remaining);
         }
       } catch {
         /* transient; keep polling */
@@ -62,6 +77,20 @@ export default function RaidQueuePage() {
     }, 2000);
     return () => clearInterval(timer);
   }, [phase, token, handle, raidId]);
+
+  // Count down the claim window; lapse → expired.
+  useEffect(() => {
+    if (phase !== "admitted" || deadline.current == null) return;
+    const timer = setInterval(() => {
+      const left = Math.max(0, Math.round((deadline.current! - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left <= 0) {
+        clearInterval(timer);
+        setPhase("expired");
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   async function handleClaim() {
     setError("");
@@ -71,15 +100,26 @@ export default function RaidQueuePage() {
       setPhase("confirmed");
     } else if (r.body.error === "raid_full") {
       setPhase("full");
+    } else if (r.body.error === "not_admitted") {
+      setPhase("expired"); // window lapsed server-side
     } else {
       setError(r.body.message ?? "Could not claim a slot.");
     }
+  }
+
+  function rejoin() {
+    deadline.current = null;
+    setSecondsLeft(null);
+    setStatus(null);
+    handleJoin();
   }
 
   const progress =
     status?.position && startPos.current
       ? Math.min(100, Math.max(0, ((startPos.current - status.position) / startPos.current) * 100))
       : 0;
+
+  const urgent = secondsLeft != null && secondsLeft <= 15;
 
   return (
     <>
@@ -130,12 +170,17 @@ export default function RaidQueuePage() {
         </div>
       )}
 
-      {/* ADMITTED — claim */}
+      {/* ADMITTED — claim with countdown */}
       {phase === "admitted" && (
         <div className="card admitted-card">
           <div className="big-emoji">🎉</div>
           <div className="headline">You’re up!</div>
-          <p className="subtext">A slot is ready for you. Claim it before it’s gone.</p>
+          <p className="subtext">Claim your slot before your hold expires.</p>
+          {secondsLeft != null && (
+            <div className={`countdown ${urgent ? "countdown--urgent" : ""}`}>
+              ⏳ {mmss(secondsLeft)} to claim
+            </div>
+          )}
           <button className="btn btn--go" onClick={handleClaim}>
             Claim my slot
           </button>
@@ -154,6 +199,21 @@ export default function RaidQueuePage() {
           <Link href="/" className="btn btn--primary" style={{ textDecoration: "none" }}>
             Back to raids
           </Link>
+        </div>
+      )}
+
+      {/* EXPIRED — hold lapsed */}
+      {phase === "expired" && (
+        <div className="card">
+          <div className="big-emoji">⌛</div>
+          <div className="headline">Your hold expired</div>
+          <p className="subtext">
+            You didn’t claim in time, so your slot was released for other trainers. You can rejoin
+            the line — you’ll start from the back.
+          </p>
+          <button className="btn btn--primary" onClick={rejoin}>
+            Rejoin the line
+          </button>
         </div>
       )}
 

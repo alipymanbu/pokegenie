@@ -19,6 +19,7 @@ export interface QueueStatus {
   position: number | null;
   depth: number;
   raid_id: number;
+  claim_seconds_remaining?: number;
 }
 
 export async function getRaid(raidId: number): Promise<Raid> {
