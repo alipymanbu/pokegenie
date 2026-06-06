@@ -98,11 +98,11 @@ first N get reservations; rest "raid full"; no double-holds.
 **Goal**: Disconnect+reconnect within grace resumes original rank; reservation survives regardless.
 
 ### Tests first
-- [ ] T033 [P] [US3] `spec/services/queue/reconnect_spec.rb`: reconnect within grace ⇒ original score/rank restored; after grace ⇒ new back-of-line; held reservation intact across reconnect (SC-004, FR-010/011/014).
+- [x] T033 [P] [US3] `spec/services/queue/reconnect_spec.rb`: reconnect within grace ⇒ original score/rank restored; after grace ⇒ new back-of-line; held reservation intact across reconnect (SC-004, FR-010/011/014).
 
 ### Implementation
-- [ ] T034 [US3] `backend/app/services/queue/reconnect.rb`: resolve `token:{t}` → re-`ZADD NX` original score + refresh TTL; missing ⇒ delegate to `Queue::Join` (new place). Emit `error: token_expired` path for SSE.
-- [ ] T035 [US3] Wire reconnect into `#status` and the SSE controller (token re-resolution on connect); frontend persists token (localStorage) and reuses it on `EventSource` reconnect.
+- [x] T034 [US3] `backend/app/services/queue/reconnect.rb`: resolve `token:{t}` → re-`ZADD NX` original score + refresh TTL; missing ⇒ delegate to `Queue::Join` (new place). Emit `error: token_expired` path for SSE.
+- [x] T035 [US3] Wire reconnect into `#status` and the SSE controller (token re-resolution on connect); frontend persists token (localStorage) and reuses it on `EventSource` reconnect.
 
 **Checkpoint**: kill the SSE connection mid-wait → reconnect resumes same position.
 

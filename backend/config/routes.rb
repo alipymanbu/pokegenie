@@ -10,6 +10,7 @@ Rails.application.routes.draw do
     post "queue/join", to: "queue#join"
     get  "queue/status", to: "queue#status"
     get  "queue/stream", to: "queue_streams#show" # SSE (US2)
+    post "queue/reconnect", to: "queue#reconnect" # resume from token (US3)
     # Slot reservation (the capacity-correct claim)
     resources :reservations, only: %i[create]
   end

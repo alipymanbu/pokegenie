@@ -7,6 +7,10 @@ module RaidQueue
   #   - score = INCR seq:{raid} → strict, unique, total ordering.
   #   - ZADD ... NX → a re-join / double-tap never moves an existing waiter (idempotent join).
   #
+  # Reconnect grace (FR-010 / FR-014): a trainer who is still "present" (heartbeat alive within
+  # the grace window) keeps their original position on re-join. A trainer whose presence has
+  # lapsed (gone longer than the grace window) is treated as a new arrival at the back of line.
+  #
   # Returns ServiceResult with { token, state, position, depth } on success,
   # or failure(:raid_full) / failure(:not_published).
   class Join
@@ -25,24 +29,37 @@ module RaidQueue
 
       QueueRedis.with do |r|
         member = @trainer.id.to_s
-        existing_score = r.zscore(QueueConfig.queue_key(@raid.id), member)
+        qkey = QueueConfig.queue_key(@raid.id)
+        existing_score = r.zscore(qkey, member)
+        present = r.exists?(QueueConfig.presence_key(@raid.id, member))
+
+        # Stale entry from a trainer gone past the grace window → drop it so they re-enter at
+        # the back of the line (FR-014). An actively-present reconnect keeps its place (FR-010).
+        if existing_score && !present
+          r.zrem(qkey, member)
+          existing_score = nil
+        end
 
         if existing_score.nil?
           score = r.incr(QueueConfig.seq_key(@raid.id))
           # NX guards the rare concurrent double-join: only the first sets the score.
-          added = r.zadd(QueueConfig.queue_key(@raid.id), score, member, nx: true)
-          score = r.zscore(QueueConfig.queue_key(@raid.id), member) unless added
+          r.zadd(qkey, score, member, nx: true)
         end
 
+        touch_presence(r, member)
         token = mint_token(r, member)
-        position = rank_to_position(r.zrank(QueueConfig.queue_key(@raid.id), member))
-        depth = r.zcard(QueueConfig.queue_key(@raid.id))
+        position = rank_to_position(r.zrank(qkey, member))
+        depth = r.zcard(qkey)
 
         ServiceResult.success(token: token, state: "waiting", position: position, depth: depth)
       end
     end
 
     private
+
+    def touch_presence(redis, member)
+      redis.set(QueueConfig.presence_key(@raid.id, member), "1", ex: QueueConfig::RECONNECT_GRACE_SECONDS)
+    end
 
     # Mint (or refresh) a reconnect token bound to this trainer+raid+score.
     def mint_token(redis, member)

@@ -18,6 +18,9 @@ module QueueConfig
   # Per-trainer claim pass: own TTL (CLAIM_WINDOW_SECONDS) so each admitted trainer's window
   # expires independently. Existence == "admitted and may still claim".
   def claimable_key(raid_id, trainer_id) = "claimable:#{raid_id}:#{trainer_id}"
+  # Per-trainer presence heartbeat (TTL = RECONNECT_GRACE_SECONDS), refreshed by the live
+  # connection. Its absence means the trainer has been gone longer than the grace window.
+  def presence_key(raid_id, trainer_id) = "presence:#{raid_id}:#{trainer_id}"
   def token_key(token)            = "token:#{token}"
   def events_channel(raid_id)     = "events:#{raid_id}"
   def admission_rate_key(raid_id) = "admission:rate:#{raid_id}"

@@ -70,6 +70,8 @@ class QueueStreamsController < ApplicationController
   def push_state(sse, raid_id, trainer_id)
     result = RaidQueue::Position.call(raid_id: raid_id, trainer_id: trainer_id)
     if result.ok? && result.data[:state] == "waiting"
+      # The live connection IS the presence heartbeat (FR-010): refresh the grace TTL each tick.
+      QueueRedis.with { |r| r.set(QueueConfig.presence_key(raid_id, trainer_id), "1", ex: QueueConfig::RECONNECT_GRACE_SECONDS) }
       sse.write({ position: result.data[:position], depth: result.data[:depth] }, event: "position")
       :continue
     elsif result.ok? && result.data[:state] == "admitted"

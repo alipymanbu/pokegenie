@@ -65,6 +65,34 @@ export async function getStatus(
   return res.json();
 }
 
+export interface ReconnectResult {
+  token: string;
+  trainer_handle: string;
+  state: "waiting" | "admitted" | "reserved" | "gone";
+  position: number | null;
+  depth: number;
+  claim_seconds_remaining?: number;
+  reservation_id?: number | null;
+  raid_id: number;
+}
+
+export async function reconnect(
+  raidId: number,
+  token: string,
+): Promise<ReconnectResult | { expired: true }> {
+  try {
+    const res = await fetch(`${API_BASE}/raids/${raidId}/queue/reconnect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) return { expired: true };
+    return res.json();
+  } catch {
+    return { expired: true };
+  }
+}
+
 export async function claimSlot(raidId: number, trainerHandle: string) {
   const res = await fetch(`${API_BASE}/raids/${raidId}/reservations`, {
     method: "POST",

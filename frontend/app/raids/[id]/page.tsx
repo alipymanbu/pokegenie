@@ -1,10 +1,19 @@
 "use client";
 
-// Waiting room with real-time SSE (US2): position + admission are pushed by the server.
+// Waiting room with real-time SSE (US2) + reconnect/resume (US3).
+// The token is persisted in localStorage so a refresh or dropped connection resumes the same
+// place (within the grace window) instead of dumping you back to the join form.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { joinQueue, getRaid, claimSlot, type QueueStatus, type Raid } from "@/lib/api";
+import {
+  joinQueue,
+  getRaid,
+  claimSlot,
+  reconnect,
+  type QueueStatus,
+  type Raid,
+} from "@/lib/api";
 import { openQueueStream } from "@/lib/queueStream";
 
 type Phase = "idle" | "waiting" | "admitted" | "confirmed" | "full" | "expired";
@@ -18,6 +27,7 @@ function mmss(total: number) {
 export default function RaidQueuePage() {
   const params = useParams<{ id: string }>();
   const raidId = Number(params.id);
+  const storageKey = `pg_q_${raidId}`;
 
   const [raid, setRaid] = useState<Raid | null>(null);
   const [handle, setHandle] = useState("");
@@ -29,23 +39,11 @@ export default function RaidQueuePage() {
   const [error, setError] = useState("");
   const startPos = useRef<number | null>(null);
   const deadline = useRef<number | null>(null);
+  const didInit = useRef(false);
 
   useEffect(() => {
     getRaid(raidId).then(setRaid).catch(() => {});
   }, [raidId]);
-
-  async function handleJoin() {
-    setError("");
-    try {
-      const s = await joinQueue(raidId, handle);
-      setToken(s.token);
-      setStatus(s);
-      startPos.current = s.position ?? 1;
-      setPhase(s.state === "raid_full" ? "full" : "waiting");
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
 
   function enterAdmitted(remaining?: number) {
     const secs = remaining && remaining > 0 ? remaining : 120;
@@ -54,7 +52,55 @@ export default function RaidQueuePage() {
     setPhase("admitted");
   }
 
-  // Real-time stream while waiting (replaces polling).
+  async function doJoin(h: string) {
+    setError("");
+    try {
+      const s = await joinQueue(raidId, h);
+      setHandle(h);
+      setToken(s.token);
+      setStatus(s);
+      startPos.current = s.position ?? 1;
+      localStorage.setItem(storageKey, JSON.stringify({ token: s.token, handle: h }));
+      setPhase(s.state === "raid_full" ? "full" : "waiting");
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  // Resume from a stored token on first mount (US3).
+  useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
+    const saved = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+    if (!saved) return;
+    const { token: savedToken, handle: savedHandle } = JSON.parse(saved);
+
+    (async () => {
+      const r = await reconnect(raidId, savedToken);
+      if ("expired" in r) {
+        if (savedHandle) await doJoin(savedHandle); // gone past grace → rejoin at the back
+        return;
+      }
+      setHandle(r.trainer_handle);
+      setToken(r.token);
+      localStorage.setItem(storageKey, JSON.stringify({ token: r.token, handle: r.trainer_handle }));
+      if (r.state === "reserved") {
+        setReservationId(r.reservation_id ?? null);
+        setPhase("confirmed");
+      } else if (r.state === "admitted") {
+        enterAdmitted(r.claim_seconds_remaining);
+      } else if (r.state === "waiting") {
+        startPos.current = r.position ?? 1;
+        setStatus({ token: r.token, raid_id: raidId, state: "waiting", position: r.position, depth: r.depth });
+        setPhase("waiting");
+      } else if (savedHandle) {
+        await doJoin(savedHandle);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raidId]);
+
+  // Real-time stream while waiting.
   useEffect(() => {
     if (phase !== "waiting" || !token) return;
     const es = openQueueStream(raidId, token, {
@@ -99,7 +145,7 @@ export default function RaidQueuePage() {
     deadline.current = null;
     setSecondsLeft(null);
     setStatus(null);
-    handleJoin();
+    doJoin(handle);
   }
 
   const progress =
@@ -129,9 +175,9 @@ export default function RaidQueuePage() {
               placeholder="Trainer name"
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handle && handleJoin()}
+              onKeyDown={(e) => e.key === "Enter" && handle && doJoin(handle)}
             />
-            <button className="btn btn--primary" onClick={handleJoin} disabled={!handle}>
+            <button className="btn btn--primary" onClick={() => doJoin(handle)} disabled={!handle}>
               Join the line
             </button>
           </div>
@@ -153,7 +199,8 @@ export default function RaidQueuePage() {
             <span style={{ width: `${progress}%` }} />
           </div>
           <p className="subtext" style={{ textAlign: "center", marginTop: 14 }}>
-            Hang tight — you’ll be admitted automatically when it’s your turn.
+            Hang tight — you’ll be admitted automatically when it’s your turn. You can safely
+            refresh; we’ll hold your place.
           </p>
         </div>
       )}
