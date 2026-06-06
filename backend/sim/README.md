@@ -38,6 +38,9 @@ Watch it live in the operator UI too: http://localhost:3001/raids/<id>/metrics
 | `SIM_DURATION` | 120 | arrival window in seconds (jittered) |
 | `SIM_SSE` | 20 | how many trainers hold a real SSE connection |
 | `SIM_CONCURRENCY` | 200 | cap on in-flight HTTP requests (models bounded server concurrency) |
+| `SIM_HOT_BIAS` | 0.6 | P(a trainer herds into a hot raid); lower = lines spread across raids |
+| `SIM_CAPACITY` | — | fixed lobby capacity for every raid (else randomized 5–40) |
+| `SIM_ADMISSION_RATE` | — | throttle: trainers admitted per tick **per raid** (writes the `admission:rate` control-plane key). Unset = server default batch (fast). |
 
 ## Behavior model
 
@@ -47,19 +50,23 @@ Watch it live in the operator UI too: http://localhost:3001/raids/<id>/metrics
 - **While waiting**: ~5% abandon (disconnect forever), ~10% drop + reconnect (exercises US3).
 - Joining a full raid → rejected; waiting in a raid that fills → drained (`raid_full`).
 
-## Making queues deeper
+## Queue-heavy run (watch deep lines + reconnect/abandon)
 
-Fast admission means most trainers are admitted within a poll or two (so `reconnect`/`abandon`
-rarely trigger). To force deep, persistent lines (and exercise reconnect/abandon), **throttle the
-control plane** — write a small admission rate per raid so the worker admits slowly:
+Fast admission means most trainers are admitted within a poll or two, so `reconnect`/`abandon`
+rarely trigger. To force **deep, persistent lines**, throttle admission with `SIM_ADMISSION_RATE`
+(the sim writes the `admission:rate:{raid}` control-plane key per raid — the same key the deferred
+adaptive controller would write), pour many trainers into few raids, and spread the herd:
 
 ```bash
-# e.g. admit only 2 trainers/tick for raid 7
-redis-cli set admission:rate:7 2
+SIM_TRAINERS=600 SIM_RAIDS=6 SIM_CAPACITY=80 SIM_ADMISSION_RATE=3 SIM_HOT_BIAS=0.3 \
+SIM_DURATION=12 SIM_SSE=15 SIM_CONCURRENCY=150 \
+  bundle exec ruby sim/simulate.rb
 ```
 
-This is the same `admission:rate:{raid}` key the (deferred) adaptive controller would write —
-the worker reads it and falls back to the default batch when it's absent.
+Observed: queue depth climbs to ~400 (admission trickles at 3/tick × 6 raids = 18/s vs ~50/s
+arrivals), and `reconnects`/`abandoned_wait` fire in the dozens — while the integrity check still
+reports **zero oversell**. Watch it in the operator UI at `/raids/<id>/metrics` (the "In line"
+stat climbs and drains in real time).
 
 ## Notes
 

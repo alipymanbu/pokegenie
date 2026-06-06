@@ -25,6 +25,7 @@ Warning[:experimental] = false
 require "async"
 require "async/http/internet"
 require "async/semaphore"
+require "redis"
 require "json"
 
 BASE        = ENV.fetch("SIM_BASE", "http://localhost:3002")
@@ -33,6 +34,11 @@ RAIDS       = ENV.fetch("SIM_RAIDS", "25").to_i
 DURATION    = ENV.fetch("SIM_DURATION", "120").to_f   # arrival window
 SSE_USERS   = ENV.fetch("SIM_SSE", "20").to_i
 CONCURRENCY = ENV.fetch("SIM_CONCURRENCY", "200").to_i
+HOT_BIAS    = ENV.fetch("SIM_HOT_BIAS", "0.6").to_f   # P(a trainer herds into a hot raid)
+CAPACITY    = ENV["SIM_CAPACITY"]&.to_i              # fixed capacity override (else randomized)
+# Throttle admission via the control-plane key (deep queues). nil = server default batch.
+ADMISSION_RATE = ENV["SIM_ADMISSION_RATE"]&.to_i
+THROTTLE = ADMISSION_RATE ? Redis.new(url: ENV.fetch("SIM_REDIS_URL", "redis://localhost:6379/0")) : nil
 
 BOSSES = %w[Mewtwo Rayquaza Kyogre Groudon Dialga Giratina Zacian Charizard Tyranitar Lugia].freeze
 
@@ -74,15 +80,15 @@ def request(internet, sem, method, path, body = nil)
 end
 
 def pick_raid
-  # ~60% pile into a "hot" raid (thundering herd); else uniform.
-  pool = (!RUN[:hot].empty? && rand < 0.6) ? RUN[:hot] : RUN[:raids]
+  # Herd into a "hot" raid with probability HOT_BIAS; else uniform.
+  pool = (!RUN[:hot].empty? && rand < HOT_BIAS) ? RUN[:hot] : RUN[:raids]
   pool.sample
 end
 
 # ---- Organizers: create + publish raids, mark a few "hot" ----
 def seed_raids(internet, sem)
   RAIDS.times do |i|
-    cap = [ 5, 10, 15, 20, 40 ].sample
+    cap = CAPACITY || [ 5, 10, 15, 20, 40 ].sample
     status, body = request(internet, sem, :post, "/raids", {
       boss: BOSSES.sample, gym_name: "Gym ##{i + 1}",
       starts_at: (Time.now + 3600).utc.iso8601, capacity: cap
@@ -90,6 +96,8 @@ def seed_raids(internet, sem)
     next unless status == 201
 
     request(internet, sem, :post, "/raids/#{body['id']}/publish")
+    # Throttle this raid's admission via the control-plane key → deep, persistent lines.
+    THROTTLE&.set("admission:rate:#{body['id']}", ADMISSION_RATE)
     RUN[:raids] << body["id"]
     stat(:raids_created)
   end
@@ -231,6 +239,7 @@ def report_line
   elapsed = (Async::Clock.now - RUN[:started]).round
   rps = RUN[:reqs] - RUN[:last_reqs]
   RUN[:last_reqs] = RUN[:reqs]
+  RUN[:peak] = [ RUN[:peak].to_i, STATS[:in_queue] ].max
   format(
     "t=%3ds | queue=%-5d joined=%-5d admitted=%-5d confirmed=%-5d full=%-5d expired=%-4d aband=%-4d recon=%-4d err=%-3d | %4d req/s p50=%dms p95=%dms",
     elapsed, STATS[:in_queue], STATS[:joined], STATS[:admitted], STATS[:confirmed],
@@ -287,6 +296,7 @@ Async do |task|
   end
   accounted = STATS[:confirmed] + full_count + STATS[:expired_afk] + STATS[:abandoned_wait]
   puts format("  %-18s %d / %d trainers", "accounted", accounted, TRAINERS)
+  puts format("  %-18s %d", "peak queue depth", RUN[:peak].to_i)
   puts format("  latency            p50=%dms p95=%dms p99=%dms", pct(LAT, 0.5), pct(LAT, 0.95), pct(LAT, 0.99))
 
   puts "\n===== INTEGRITY ====="
