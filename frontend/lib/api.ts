@@ -22,6 +22,110 @@ export interface QueueStatus {
   claim_seconds_remaining?: number;
 }
 
+// ---- Elastic encounters (feature 002) ----
+export interface Encounter {
+  id: number;
+  boss: string;
+  label: string;
+  starts_at: string;
+  room_size: number;
+  status: string;
+  rooms: number;
+}
+
+export interface EncounterStatus {
+  token: string;
+  trainer_handle?: string;
+  state: "waiting" | "admitted" | "reserved";
+  position: number | null;
+  depth: number;
+  room_id?: number | null;
+  room_number?: number | null;
+  claim_seconds_remaining?: number | null;
+  encounter_id: number;
+}
+
+export async function listEncounters(): Promise<Encounter[]> {
+  const res = await fetch(`${API_BASE}/encounters`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load encounters (${res.status})`);
+  return (await res.json()).encounters as Encounter[];
+}
+
+export async function getEncounter(id: number): Promise<Encounter> {
+  const res = await fetch(`${API_BASE}/encounters/${id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to load encounter (${res.status})`);
+  return res.json();
+}
+
+export async function createEncounter(input: {
+  boss: string;
+  label: string;
+  starts_at: string;
+  room_size: number;
+}): Promise<Encounter> {
+  const res = await fetch(`${API_BASE}/encounters`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.message ?? `Create failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function publishEncounter(id: number): Promise<Encounter> {
+  const res = await fetch(`${API_BASE}/encounters/${id}/publish`, { method: "POST" });
+  if (!res.ok) throw new Error(`Publish failed (${res.status})`);
+  return res.json();
+}
+
+export async function joinEncounter(id: number, trainerHandle: string): Promise<EncounterStatus> {
+  const res = await fetch(`${API_BASE}/encounters/${id}/queue/join`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ trainer_handle: trainerHandle }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.message ?? `Join failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function reconnectEncounter(
+  id: number,
+  token: string,
+): Promise<EncounterStatus | { expired: true }> {
+  try {
+    const res = await fetch(`${API_BASE}/encounters/${id}/queue/reconnect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) return { expired: true };
+    return res.json();
+  } catch {
+    return { expired: true };
+  }
+}
+
+export interface EncounterMetrics {
+  encounter_id: number;
+  queue_depth: number;
+  rooms: number;
+  room_size: number;
+  confirmed: number;
+  capacity_so_far: number;
+}
+
+export async function getEncounterMetrics(id: number): Promise<EncounterMetrics> {
+  const res = await fetch(`${API_BASE}/encounters/${id}/metrics`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Metrics failed (${res.status})`);
+  return res.json();
+}
+
 export interface Metrics {
   raid_id: number;
   queue_depth: number;

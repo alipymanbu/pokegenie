@@ -31,3 +31,28 @@ export function openQueueStream(
 
   return es;
 }
+
+export interface EncounterStreamHandlers {
+  onPosition?: (d: { position: number; depth: number }) => void;
+  onAdmitted?: (d: { room_id: number; room_number: number; claim_seconds_remaining?: number }) => void;
+}
+
+export function openEncounterStream(
+  encounterId: number,
+  token: string,
+  handlers: EncounterStreamHandlers,
+): EventSource {
+  const url = new URL(`${API_BASE}/encounters/${encounterId}/queue/stream`);
+  url.searchParams.set("token", token);
+  const es = new EventSource(url.toString());
+
+  es.addEventListener("position", (e) =>
+    handlers.onPosition?.(JSON.parse((e as MessageEvent).data)),
+  );
+  es.addEventListener("admitted", (e) => {
+    handlers.onAdmitted?.(JSON.parse((e as MessageEvent).data));
+    es.close();
+  });
+
+  return es;
+}

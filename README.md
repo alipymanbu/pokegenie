@@ -72,5 +72,7 @@ Release-blocking specs (constitution Principle VI): concurrent **no-oversell**
   reservations survive (Postgres).
 - ✅ **US4 — Organizer**: create + publish raids from the UI.
 - ✅ **Polish**: operator metrics view, coordinator-down (pacing fallback) test.
+- ✅ **Elastic encounters (feature 002)**: queue for a Pokémon, the system auto-assigns rooms and
+  **spawns new ones on demand** (no "full") — see [specs/002-elastic-encounters/](specs/002-elastic-encounters/).
 - 🚫 **Deferred** (documented): adaptive admission *controller* logic, section pub/sub seat maps,
   durable recovery log, production-scale SSE fleet, and AWS/Terraform infra (`infra/`).

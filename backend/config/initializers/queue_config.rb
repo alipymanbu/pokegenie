@@ -27,4 +27,15 @@ module QueueConfig
   def metric_claims_key(raid_id)    = "metrics:claims:#{raid_id}"
   def metric_conflicts_key(raid_id) = "metrics:conflicts:#{raid_id}"
   def metric_admitted_key(raid_id)  = "metrics:admitted:#{raid_id}"
+
+  # --- Elastic encounters (feature 002): a single FIFO line that fans out into spawned rooms ---
+  def enc_seq_key(enc_id)        = "seq:enc:#{enc_id}"
+  def enc_queue_key(enc_id)      = "queue:enc:#{enc_id}"
+  def enc_presence_key(enc_id, trainer_id) = "presence:enc:#{enc_id}:#{trainer_id}"
+  def enc_events_channel(enc_id) = "events:enc:#{enc_id}"
+  def enc_admission_rate_key(enc_id) = "admission:rate:enc:#{enc_id}"
+  def enc_open_room_key(enc_id)  = "enc:#{enc_id}:open_room"          # room id currently being filled
+  def enc_assignment_key(enc_id, trainer_id) = "enc:#{enc_id}:assigned:#{trainer_id}" # → room id
+  def room_assigned_key(room_id) = "room:#{room_id}:assigned"        # how many assigned to a room
+  def enc_metric_admitted_key(enc_id) = "metrics:enc:admitted:#{enc_id}"
 end

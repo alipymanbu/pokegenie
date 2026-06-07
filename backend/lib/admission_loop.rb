@@ -26,10 +26,19 @@ module AdmissionLoop
   # One admission pass over all published raids. Extracted so it can be unit-tested without
   # the infinite loop.
   def tick_once
-    Raid.where(status: "published").find_each do |raid|
+    # Standalone raids (feature 001) — skip rooms, which belong to encounters.
+    Raid.where(status: "published", encounter_id: nil).find_each do |raid|
       result = RaidQueue::AdmitBatch.call(raid: raid)
       if result[:admitted].positive? || result[:drained].positive?
         Rails.logger.info("[admission_loop] raid=#{raid.id} admitted=#{result[:admitted]} drained=#{result[:drained]} remaining=#{raid.reload.slots_remaining}")
+      end
+    end
+
+    # Elastic encounters (feature 002) — admit into auto-spawned rooms.
+    Encounter.where(status: "published").find_each do |enc|
+      result = Encounters::AdmitBatch.call(encounter: enc)
+      if result[:admitted].positive?
+        Rails.logger.info("[admission_loop] encounter=#{enc.id} admitted=#{result[:admitted]} rooms_spawned=#{result[:rooms_spawned]}")
       end
     end
   rescue => e

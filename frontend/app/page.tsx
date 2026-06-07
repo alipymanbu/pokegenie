@@ -25,6 +25,17 @@ export default async function HomePage() {
 
   return (
     <>
+      <Link href="/encounters" className="card raid-card" style={{ display: "block", marginBottom: 18 }}>
+        <div className="raid-top">
+          <div>
+            <div className="raid-boss">⚡ Raid encounters</div>
+            <div className="raid-gym">Queue for a Pokémon — rooms auto-assigned &amp; spun up on demand</div>
+          </div>
+          <span className="badge badge--info">elastic</span>
+        </div>
+        <div className="raid-cta">Browse encounters →</div>
+      </Link>
+
       <div className="toolbar">
         <h2 className="section-title" style={{ margin: 0 }}>
           Open raids

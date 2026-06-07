@@ -3,7 +3,8 @@ class RaidsController < ApplicationController
 
   # GET /raids — published raids trainers can queue for
   def index
-    raids = Raid.where(status: "published").order(starts_at: :asc)
+    # Standalone raids only — encounter rooms are system-managed, not listed here.
+    raids = Raid.standalone.where(status: "published").order(starts_at: :asc)
     render json: { raids: raids.map { |r| raid_json(r) } }
   end
 

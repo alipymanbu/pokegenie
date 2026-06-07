@@ -1,7 +1,10 @@
 class Raid < ApplicationRecord
   STATUSES = %w[draft published closed].freeze
 
+  belongs_to :encounter, optional: true # set → this Raid is a "room" of an encounter
   has_many :reservations, dependent: :restrict_with_exception
+
+  scope :standalone, -> { where(encounter_id: nil) }
 
   validates :boss, :gym_name, presence: true
   validates :starts_at, presence: true
