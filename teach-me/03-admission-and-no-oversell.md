@@ -167,7 +167,7 @@ sequenceDiagram
   T1->>PG: UPDATE ... WHERE slots_remaining>0 (locks row)
   T2-->>PG: UPDATE ... (waits for lock)
   PG-->>T1: 1 row, slots_remaining=0, COMMIT
-  PG-->>T2: lock free; predicate now false -> 0 rows
+  PG-->>T2: lock free; predicate now false → 0 rows
   T2->>PG: ROLLBACK (reservation deleted)
   Note over T1,T2: T1 :created, T2 :raid_full -- one slot, one winner
 ```
