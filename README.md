@@ -1,9 +1,12 @@
 # PokeGenie Raid Queue
 
-A virtual waiting-queue + reservation system for high-demand **Pokémon GO raid lobby slots** —
-trainers queue for one of N slots in a fixed-capacity raid, are admitted fairly (FIFO), and claim
-a slot with a hard **no-oversell** guarantee. Inspired by the system design behind concert-ticket
-waiting queues, adapted to raid lobbies.
+A **learning project** for studying the design of a virtual waiting-queue + reservation system,
+modeled on high-demand **Pokémon GO raid lobby slots** — trainers queue for one of N slots in a
+fixed-capacity raid, are admitted fairly (FIFO), and claim a slot with a hard **no-oversell**
+guarantee. Inspired by the system design behind concert-ticket waiting queues, adapted to raid
+lobbies. The intent is educational: a small but realistic codebase for exploring FIFO fairness,
+no-oversell invariants, and control/data-plane separation (see the [`teach-me/`](teach-me/)
+walkthrough).
 
 Built spec-first with [spec-kit](https://github.com/github/spec-kit). The full spec, plan, and
 design live in [`specs/001-raid-lobby-queue/`](specs/001-raid-lobby-queue/); the engineering
