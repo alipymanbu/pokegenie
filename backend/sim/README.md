@@ -8,7 +8,22 @@ expires. A handful hold real SSE connections; some drop and reconnect mid-wait.
 It exercises the whole system end-to-end (Puma, Redis, Postgres, the admission worker, the atomic
 claim) and finishes with a **no-oversell integrity check** against live `/metrics`.
 
-## Run
+## Run (via rake — recommended)
+
+Named profiles, no ENV vars to remember (any `SIM_*` you set still overrides):
+
+```bash
+bundle exec rake sim:reset         # clean slate (wipe raids/reservations + Redis)
+bundle exec rake sim:fast          # ~2000 trainers, default (fast) admission
+bundle exec rake sim:queue_heavy   # deep, sustained lines (throttled admission)
+bundle exec rake "sim:run[fast]"   # explicit profile form
+SIM_TRAINERS=500 bundle exec rake sim:queue_heavy   # override any knob
+```
+
+Still point these at a backend tuned for load (see below). Watch live in the operator UI at
+`http://localhost:3003/raids/<id>/metrics`.
+
+## Run (direct)
 
 Start a backend tuned for load + the worker, then run the sim:
 
