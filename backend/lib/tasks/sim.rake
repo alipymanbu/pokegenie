@@ -55,12 +55,40 @@ namespace :sim do
   desc "Elastic encounters under load — watch rooms spawn + backfill (/encounters/:id/metrics)"
   task(:encounters) { run_profile("encounters") }
 
+  desc "Pre-fill an encounter with N waiters + throttle it, so YOU can join behind the crowd"
+  # Usage: bundle exec rake "sim:prefill[150,2]"   → 150 waiters, admit 2/tick (slow countdown)
+  task :prefill, [ :count, :rate, :room_size ] => :environment do |_t, args|
+    require "securerandom"
+    count = (args[:count] || 150).to_i
+    rate  = (args[:rate]  || 2).to_i
+    size  = (args[:room_size] || 20).to_i
+
+    # Throttle BEFORE publishing so the worker can't drain at the default batch; then publish and
+    # enqueue. The in-process join loop finishes in well under one worker tick, so the queue stays
+    # ~full. (Join requires a published encounter, hence publish-then-enqueue.)
+    enc = Encounter.create!(boss: "Mewtwo", label: "Mega Raid Hour",
+                            starts_at: 1.hour.from_now, room_size: size, status: "draft")
+    QueueRedis.with { |r| r.set(QueueConfig.enc_admission_rate_key(enc.id), rate) }
+    enc.update!(status: "published")
+    count.times do |i|
+      trainer = Trainer.find_or_create_by_handle!("waiter_#{i}_#{SecureRandom.hex(3)}")
+      Encounters::Join.call(encounter: enc, trainer: trainer)
+    end
+
+    depth = QueueRedis.with { |r| r.zcard(QueueConfig.enc_queue_key(enc.id)) }
+    puts "✓ Encounter ##{enc.id} prefilled: #{depth} waiters in line, admitting #{rate}/tick (~#{rate}/s)."
+    puts "→ Join in the UI:  http://localhost:3003/encounters/#{enc.id}"
+    puts "   You'll start around ##{depth + 1} and watch it count down. Operator view:"
+    puts "   http://localhost:3003/encounters/#{enc.id}/metrics"
+  end
+
   desc "Wipe raids/reservations + Redis state for a clean run"
   task reset: :environment do
     require "redis"
     Redis.new(url: ENV.fetch("REDIS_URL", "redis://localhost:6379/0")).flushdb
     Reservation.delete_all
-    Raid.delete_all
-    puts "✓ reset: cleared raids, reservations, and Redis"
+    Raid.delete_all       # rooms (FK to encounters) must go before encounters
+    Encounter.delete_all
+    puts "✓ reset: cleared encounters, raids, reservations, and Redis"
   end
 end
