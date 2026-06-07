@@ -111,13 +111,23 @@ export async function reconnectEncounter(
   }
 }
 
+export interface RoomFill {
+  room_number: number;
+  room_size: number;
+  confirmed: number;
+  holding: number;
+  free: number;
+}
+
 export interface EncounterMetrics {
   encounter_id: number;
   queue_depth: number;
   rooms: number;
   room_size: number;
+  admitted_total: number;
   confirmed: number;
   capacity_so_far: number;
+  room_breakdown: RoomFill[];
 }
 
 export async function getEncounterMetrics(id: number): Promise<EncounterMetrics> {

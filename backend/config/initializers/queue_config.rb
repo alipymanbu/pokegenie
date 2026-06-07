@@ -34,8 +34,9 @@ module QueueConfig
   def enc_presence_key(enc_id, trainer_id) = "presence:enc:#{enc_id}:#{trainer_id}"
   def enc_events_channel(enc_id) = "events:enc:#{enc_id}"
   def enc_admission_rate_key(enc_id) = "admission:rate:enc:#{enc_id}"
-  def enc_open_room_key(enc_id)  = "enc:#{enc_id}:open_room"          # room id currently being filled
   def enc_assignment_key(enc_id, trainer_id) = "enc:#{enc_id}:assigned:#{trainer_id}" # → room id
-  def room_assigned_key(room_id) = "room:#{room_id}:assigned"        # how many assigned to a room
+  # Outstanding admitted-but-unclaimed "holds" on a room (sorted set: trainer → expiry epoch).
+  # A hold that lapses (AFK no-show) is pruned, freeing its slot for backfill.
+  def room_holds_key(room_id)    = "room:#{room_id}:holds"
   def enc_metric_admitted_key(enc_id) = "metrics:enc:admitted:#{enc_id}"
 end

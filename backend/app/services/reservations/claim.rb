@@ -58,7 +58,12 @@ module Reservations
     end
 
     def clear_admitted
-      QueueRedis.with { |r| r.del(QueueConfig.claimable_key(@raid.id, @trainer.id)) }
+      QueueRedis.with do |r|
+        r.del(QueueConfig.claimable_key(@raid.id, @trainer.id))
+        # Release the encounter-room hold (no-op for standalone raids) so the now-confirmed slot
+        # isn't double-counted against backfill capacity.
+        r.zrem(QueueConfig.room_holds_key(@raid.id), @trainer.id.to_s)
+      end
     end
 
     def run_transaction

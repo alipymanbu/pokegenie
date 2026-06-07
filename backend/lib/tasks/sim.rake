@@ -20,6 +20,13 @@ namespace :sim do
       "SIM_TRAINERS" => "800", "SIM_RAIDS" => "6", "SIM_CAPACITY" => "400",
       "SIM_ADMISSION_RATE" => "2", "SIM_HOT_BIAS" => "0.3", "SIM_DURATION" => "30",
       "SIM_SSE" => "15", "SIM_CONCURRENCY" => "120"
+    },
+    # Elastic encounters — throttled admission so you can watch rooms spawn + backfill under load.
+    # Watch /encounters/:id/metrics (per-room fill).
+    "encounters" => {
+      "SIM_MODE" => "encounters", "SIM_TRAINERS" => "600", "SIM_RAIDS" => "3",
+      "SIM_CAPACITY" => "20", "SIM_ADMISSION_RATE" => "5", "SIM_HOT_BIAS" => "0.5",
+      "SIM_DURATION" => "25", "SIM_SSE" => "15", "SIM_CONCURRENCY" => "150"
     }
   }.freeze
 
@@ -44,6 +51,9 @@ namespace :sim do
 
   desc "Deep sustained queues (throttled admission; watch the operator view)"
   task(:queue_heavy) { run_profile("queue_heavy") }
+
+  desc "Elastic encounters under load — watch rooms spawn + backfill (/encounters/:id/metrics)"
+  task(:encounters) { run_profile("encounters") }
 
   desc "Wipe raids/reservations + Redis state for a clean run"
   task reset: :environment do

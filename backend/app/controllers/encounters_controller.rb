@@ -24,18 +24,28 @@ class EncountersController < ApplicationController
     render json: encounter_json(@encounter)
   end
 
-  # GET /encounters/:id/metrics — aggregate across the encounter's rooms + live queue depth
+  # GET /encounters/:id/metrics — live queue depth + per-room fill (for the operator view)
   def metrics
-    rooms = @encounter.rooms
-    confirmed = Reservation.where(raid_id: rooms.select(:id), status: "confirmed").count
+    rooms = @encounter.rooms.order(:room_number)
+    now = Time.now.to_i
+    size = @encounter.room_size
+    room_rows = rooms.map do |room|
+      confirmed = size - room.slots_remaining
+      holding = QueueRedis.with { |r| r.zcount(QueueConfig.room_holds_key(room.id), "(#{now}", "+inf") }
+      { room_number: room.room_number, room_size: size, confirmed: confirmed,
+        holding: holding, free: [ size - confirmed - holding, 0 ].max }
+    end
     depth = QueueRedis.with { |r| r.zcard(QueueConfig.enc_queue_key(@encounter.id)) }
+    admitted = QueueRedis.with { |r| r.get(QueueConfig.enc_metric_admitted_key(@encounter.id)).to_i }
     render json: {
       encounter_id: @encounter.id,
       queue_depth: depth,
       rooms: rooms.count,
-      room_size: @encounter.room_size,
-      confirmed: confirmed,
-      capacity_so_far: rooms.count * @encounter.room_size
+      room_size: size,
+      admitted_total: admitted,
+      confirmed: room_rows.sum { |r| r[:confirmed] },
+      capacity_so_far: rooms.count * size,
+      room_breakdown: room_rows
     }
   end
 

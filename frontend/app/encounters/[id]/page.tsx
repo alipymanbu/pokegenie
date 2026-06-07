@@ -144,6 +144,9 @@ export default function EncounterQueuePage() {
 
   return (
     <>
+      <Link href={`/encounters/${encId}/metrics`} className="ops-link">
+        Operator view →
+      </Link>
       <Link href="/encounters" className="back-link">
         ← All encounters
       </Link>

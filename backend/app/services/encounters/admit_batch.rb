@@ -1,9 +1,13 @@
 module Encounters
-  # Elastic admission (FE-002): pop the next batch from the encounter's FIFO line and assign each
-  # trainer to a room with space — spawning a new room of `room_size` whenever the open room is
-  # full. No "encounter full": supply expands to meet demand.
+  # Elastic admission with AFK-slot backfill (FE-002, feature 002 + backfill).
   #
-  # Only the single admission worker runs this, so room selection/spawning is race-free.
+  # Pops the next batch from the encounter's FIFO line and assigns each trainer to the earliest
+  # room with a free slot, spawning a new room only when none has room. "Free" accounts for
+  # confirmed claims AND outstanding holds; a hold that lapses (admitted trainer never claimed)
+  # is pruned, so its slot is BACKFILLED to a later trainer instead of being wasted.
+  #
+  # Only the single admission worker runs this, so room selection/spawning is race-free; the
+  # per-room atomic claim still guarantees no oversell even if a hold/claim momentarily race.
   class AdmitBatch
     def self.call(encounter:)
       new(encounter:).call
@@ -11,19 +15,35 @@ module Encounters
 
     def initialize(encounter:)
       @encounter = encounter
+      @size = encounter.room_size
     end
 
     def call
       members = QueueRedis.with { |r| Array(r.zpopmin(QueueConfig.enc_queue_key(@encounter.id), batch_size)) }
-      return { admitted: 0, rooms_spawned: 0 } if members.empty?
+      return { admitted: 0, rooms_spawned: 0, backfilled: 0 } if members.empty?
 
+      now = Time.now.to_i
+      # [room, free_slots] for existing rooms, earliest first (so freed early-room slots fill first).
+      rooms = @encounter.rooms.order(:room_number).map { |room| [ room, free_slots(room, now) ] }
       spawned = 0
+      backfilled = 0
+
       members.each do |member, _score|
-        room, fresh = open_room_for_assignment
-        spawned += 1 if fresh
-        assign(member, room)
+        slot = rooms.find { |(_room, free)| free > 0 }
+        if slot.nil?
+          room = spawn_room
+          slot = [ room, @size ]
+          rooms << slot
+          spawned += 1
+        else
+          # Reusing a room that already has confirmed/holds in it = a backfill into a freed slot.
+          backfilled += 1 if slot[0].slots_remaining < @size
+        end
+        assign(member, slot[0], now)
+        slot[1] -= 1
       end
-      { admitted: members.size, rooms_spawned: spawned }
+
+      { admitted: members.size, rooms_spawned: spawned, backfilled: backfilled }
     end
 
     private
@@ -37,35 +57,29 @@ module Encounters
       QueueConfig::ADMISSION_DEFAULT_BATCH
     end
 
-    # Returns [room, spawned_bool]. Reuses the open room until its assignment count hits
-    # room_size, then spawns the next one.
-    def open_room_for_assignment
-      QueueRedis.with do |r|
-        open_id = r.get(QueueConfig.enc_open_room_key(@encounter.id))
-        if open_id
-          assigned = r.get(QueueConfig.room_assigned_key(open_id)).to_i
-          room = Raid.find_by(id: open_id)
-          return [ room, false ] if room && assigned < @encounter.room_size
-        end
-        [ spawn_room, true ]
+    # Open capacity = confirmed_remaining (slots_remaining) minus still-active holds.
+    # Prunes lapsed holds (AFK no-shows) so their slots become available again (backfill).
+    def free_slots(room, now)
+      holds = QueueRedis.with do |r|
+        r.zremrangebyscore(QueueConfig.room_holds_key(room.id), 0, now)
+        r.zcard(QueueConfig.room_holds_key(room.id))
       end
+      room.slots_remaining - holds
     end
 
     def spawn_room
       number = (@encounter.rooms.maximum(:room_number) || 0) + 1
-      room = Raid.create!(
+      Raid.create!(
         encounter: @encounter, room_number: number,
         boss: @encounter.boss, gym_name: "#{@encounter.label} · Room ##{number}",
-        starts_at: @encounter.starts_at, capacity: @encounter.room_size,
-        slots_remaining: @encounter.room_size, status: "published"
+        starts_at: @encounter.starts_at, capacity: @size,
+        slots_remaining: @size, status: "published"
       )
-      QueueRedis.with { |r| r.set(QueueConfig.enc_open_room_key(@encounter.id), room.id) }
-      room
     end
 
-    def assign(member, room)
+    def assign(member, room, now)
       QueueRedis.with do |r|
-        r.incr(QueueConfig.room_assigned_key(room.id))
+        r.zadd(QueueConfig.room_holds_key(room.id), now + QueueConfig::CLAIM_WINDOW_SECONDS, member)
         r.set(QueueConfig.enc_assignment_key(@encounter.id, member), room.id, ex: QueueConfig::CLAIM_WINDOW_SECONDS)
         r.set(QueueConfig.claimable_key(room.id, member), "1", ex: QueueConfig::CLAIM_WINDOW_SECONDS)
         r.incr(QueueConfig.enc_metric_admitted_key(@encounter.id))
