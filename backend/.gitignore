@@ -1,0 +1,5 @@
+# Rails app ignores (root .gitignore notes each app keeps its own).
+
+# Ignore the temporary files (cache, bootsnap, pids), but keep the directory.
+/tmp/*
+!/tmp/.keep

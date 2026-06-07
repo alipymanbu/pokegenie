@@ -63,13 +63,18 @@ namespace :sim do
     rate  = (args[:rate]  || 2).to_i
     size  = (args[:room_size] || 20).to_i
 
+    # One encounter per boss: reuse Mewtwo's live encounter if it exists (re-running prefill just
+    # deepens the same line), otherwise stage a fresh one. Mirrors EncountersController#create so
+    # the sim can't trip index_encounters_unique_active_boss. (room_size only applies on create.)
+    boss = ENV.fetch("SIM_BOSS", "Mewtwo")
+    enc = Encounter.active_for_boss(boss) ||
+          Encounter.create!(boss: boss, label: "Mega Raid Hour",
+                            starts_at: 1.hour.from_now, room_size: size, status: "draft")
     # Throttle BEFORE publishing so the worker can't drain at the default batch; then publish and
     # enqueue. The in-process join loop finishes in well under one worker tick, so the queue stays
     # ~full. (Join requires a published encounter, hence publish-then-enqueue.)
-    enc = Encounter.create!(boss: "Mewtwo", label: "Mega Raid Hour",
-                            starts_at: 1.hour.from_now, room_size: size, status: "draft")
     QueueRedis.with { |r| r.set(QueueConfig.enc_admission_rate_key(enc.id), rate) }
-    enc.update!(status: "published")
+    enc.update!(status: "published") unless enc.published?
     count.times do |i|
       trainer = Trainer.find_or_create_by_handle!("waiter_#{i}_#{SecureRandom.hex(3)}")
       Encounters::Join.call(encounter: enc, trainer: trainer)

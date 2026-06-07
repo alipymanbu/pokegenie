@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_07_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_07_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pg_catalog.plpgsql"
@@ -23,6 +23,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_07_000002) do
     t.datetime "starts_at", null: false
     t.string "status", default: "draft", null: false
     t.datetime "updated_at", null: false
+    t.index "lower((boss)::text)", name: "index_encounters_unique_active_boss", unique: true, where: "((status)::text <> 'closed'::text)"
     t.index ["status"], name: "index_encounters_on_status"
     t.check_constraint "room_size > 0", name: "encounters_room_size_positive"
   end

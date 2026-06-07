@@ -13,9 +13,17 @@ class EncountersController < ApplicationController
   end
 
   # POST /encounters — organizer creates (draft). Rooms are system-spawned, not created here.
+  # One encounter per boss: if this Pokémon already has a live encounter, funnel into it
+  # instead of spawning a parallel one. The DB unique index is the real guard; the rescue
+  # makes a lost create race resolve to the winner rather than 500.
   def create
+    if (existing = Encounter.active_for_boss(encounter_params[:boss]))
+      return render json: encounter_json(existing), status: :ok
+    end
     enc = Encounter.create!(encounter_params.merge(status: "draft"))
     render json: encounter_json(enc), status: :created
+  rescue ActiveRecord::RecordNotUnique
+    render json: encounter_json(Encounter.active_for_boss(encounter_params[:boss])), status: :ok
   end
 
   # POST /encounters/:id/publish

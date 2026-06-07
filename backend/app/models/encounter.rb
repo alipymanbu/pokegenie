@@ -8,5 +8,14 @@ class Encounter < ApplicationRecord
   validates :room_size, numericality: { greater_than: 0 }
   validates :status, inclusion: { in: STATUSES }
 
+  # Not yet closed — the states in which a boss already has a live encounter to queue into.
+  scope :active, -> { where.not(status: "closed") }
+
+  # The single active encounter for a boss, if one exists (case-insensitive).
+  # Backed by index_encounters_unique_active_boss, so there is at most one.
+  def self.active_for_boss(boss)
+    active.where("lower(boss) = lower(?)", boss.to_s.strip).order(:id).first
+  end
+
   def published? = status == "published"
 end
